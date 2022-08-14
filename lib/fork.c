@@ -64,38 +64,21 @@ pgfault(struct UTrapframe *utf)
 static int
 duppage(envid_t envid, unsigned pn)
 {
-	int r;
-
-	// LAB 4: Your code here.
-	void *addr;	
-	pte_t pte;
-	int perm;
-
-	addr = (void*)((uint32_t)(pn*PGSIZE));
-	pte = uvpt[pn];
-	perm = PTE_P | PTE_U;
-	
-	if ((pte & PTE_W) || (pte & PTE_COW))
-		perm |= PTE_COW;
-	
-	if ((r = sys_page_map(thisenv->env_id,addr,envid,addr,
-		perm)) < 0)
-		{
-			panic("duppage:page map failed:%e\n",r);
-			return r;
-		}
-	//再次映射父进程
-	if (perm & PTE_COW)
-	{
-		if ((r = sys_page_map(thisenv->env_id,addr,thisenv->env_id,
-			addr,perm)) < 0)
-			{
-				panic("duppage:map itself failed %e\n",r);
-				return r;
-			}
+	int r; 
+	// LAB 4: Your code here. 
+	void *addr = (void*) (pn * PGSIZE); 
+	if (uvpt[pn] & PTE_SHARE) { 
+		sys_page_map(0, addr, envid, addr, PTE_SYSCALL); 
+	} 
+	else if ((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW)) { 
+		if ((r = sys_page_map(0, addr, envid, addr, PTE_COW|PTE_U|PTE_P)) < 0) 
+			panic("sys_page_map：%e", r); 
+		if ((r = sys_page_map(0, addr, 0, addr, PTE_COW|PTE_U|PTE_P)) < 0) 
+			panic("sys_page_map：%e", r); 
 	}
-
-	//panic("duppage not implemented");
+	else {
+		sys_page_map(0, addr, envid, addr, PTE_U|PTE_P); 
+	}
 	return 0;
 }
 
