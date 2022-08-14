@@ -271,7 +271,12 @@ mem_init_mp(void)
 	//             Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	//
-	// LAB 4: Your code here:
+	// LAB 4: Your code here.
+	
+	for (int i = 0; i != NCPU; ++i) {
+    uintptr_t kstacktop = KSTACKTOP - i * (KSTKSIZE + KSTKGAP);
+    boot_map_region(kern_pgdir, kstacktop - KSTKSIZE, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W | PTE_P);
+}
 
 }
 
@@ -312,24 +317,14 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	
-	size_t i; 
-	page_free_list = NULL; 
-	int num_alloc = ((uint32_t)boot_alloc(0)-KERNBASE) / PGSIZE; 
-	int num_iohole = 96; 
-
-	for (i = 0; i < npages; i++) {
-		if(i == 0) {
-			pages[i].pp_ref = 1;
-		} 
-		else if(i >= npages_basemem && i < npages_basemem + num_iohole + num_alloc) {
-			pages[i].pp_ref = 1; 
-		} 
-		else {
-			pages[i].pp_ref = 0; 
-			pages[i].pp_link = page_free_list; 
-			page_free_list = &pages[i];
-		} 
-	}
+	size_t left_i = PGNUM(IOPHYSMEM);
+    size_t right_i = PGNUM(PADDR(envs + NENV));
+    for (size_t i = 1; i < npages; i++) {
+        if ((i < left_i || i > right_i) && i != PGNUM(MPENTRY_PADDR)) {
+            pages[i].pp_link = page_free_list;
+            page_free_list = &pages[i];
+        }
+    }
 }
 
 //
@@ -601,7 +596,15 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+
+	uintptr_t ret = base;
+	size = ROUNDUP(size, PGSIZE);
+	base = base + size;
+	if (base >= MMIOLIM) {
+		panic("larger than MMIOLIM");
+	}
+	boot_map_region(kern_pgdir, ret, size, pa, PTE_PCD | PTE_PWT | PTE_W);
+	return (void *) ret;
 }
 
 static uintptr_t user_mem_check_addr;
@@ -629,7 +632,7 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
 
-	cprintf("user_mem_check va: %x, len: %x\n", va, len);
+	//cprintf("user_mem_check va: %x, len: %x\n", va, len);
 	uint32_t begin = (uint32_t) ROUNDDOWN(va, PGSIZE); 
 	uint32_t end = (uint32_t) ROUNDUP(va+len, PGSIZE);
 	uint32_t i;
@@ -640,7 +643,7 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 			return -E_FAULT;
 		}
 	}
-	cprintf("user_mem_check success va: %x, len: %x\n", va, len);
+	//cprintf("user_mem_check success va: %x, len: %x\n", va, len);
 	return 0;
 }
 
