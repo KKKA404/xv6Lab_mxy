@@ -25,6 +25,9 @@ pgfault(struct UTrapframe *utf)
 	//   (see <inc/memlayout.h>).
 
 	// LAB 4: Your code here.
+	if (!(err & FEC_WR) || !(uvpt[PGNUM(addr)] & PTE_COW)) {
+    	panic("pgfault: failed!");
+	}
 
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
@@ -33,8 +36,18 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 
 	// LAB 4: Your code here.
+	if ((r = sys_page_alloc(0, (void *) PFTEMP, PTE_U | PTE_W | PTE_P)) < 0) {
+    panic("pgfault: %e", r);
+	}
+	memcpy((void *) PFTEMP, ROUNDDOWN(addr, PGSIZE), PGSIZE);
+	if ((r = sys_page_map(0, (void *) PFTEMP, 0, ROUNDDOWN(addr, PGSIZE), PTE_U | PTE_W | PTE_P)) < 0) {
+		panic("pgfault: %e", r);
+	}
+	if ((r = sys_page_unmap(0, (void *) PFTEMP)) < 0) {
+		panic("pgfault: %e", r);
+	}
 
-	panic("pgfault not implemented");
+	//panic("pgfault not implemented");
 }
 
 //
@@ -54,7 +67,35 @@ duppage(envid_t envid, unsigned pn)
 	int r;
 
 	// LAB 4: Your code here.
-	panic("duppage not implemented");
+	void *addr;	
+	pte_t pte;
+	int perm;
+
+	addr = (void*)((uint32_t)(pn*PGSIZE));
+	pte = uvpt[pn];
+	perm = PTE_P | PTE_U;
+	
+	if ((pte & PTE_W) || (pte & PTE_COW))
+		perm |= PTE_COW;
+	
+	if ((r = sys_page_map(thisenv->env_id,addr,envid,addr,
+		perm)) < 0)
+		{
+			panic("duppage:page map failed:%e\n",r);
+			return r;
+		}
+	//再次映射父进程
+	if (perm & PTE_COW)
+	{
+		if ((r = sys_page_map(thisenv->env_id,addr,thisenv->env_id,
+			addr,perm)) < 0)
+			{
+				panic("duppage:map itself failed %e\n",r);
+				return r;
+			}
+	}
+
+	//panic("duppage not implemented");
 	return 0;
 }
 
@@ -78,7 +119,38 @@ envid_t
 fork(void)
 {
 	// LAB 4: Your code here.
-	panic("fork not implemented");
+	envid_t envid;
+	int r;
+	size_t i,j,pn;
+
+	//为父进程设置错误页错误处理函数，并且设置错误处理栈
+	set_pgfault_handler(pgfault);
+		
+	assert((envid = sys_exofork()) >= 0);
+
+	if (envid == 0)
+	{
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+	for (pn = PGNUM(UTEXT); pn < PGNUM(UXSTACKTOP-PGSIZE); pn++)	
+	{
+		if ((uvpd[pn>>10] & PTE_P) &&  (uvpt[pn] & PTE_P))
+		{
+			assert(duppage(envid,pn) == 0);
+		}
+	}
+
+	assert(sys_page_alloc(envid,(void*)(UXSTACKTOP-PGSIZE),PTE_P|PTE_W|PTE_U)
+		 == 0);
+
+	extern  void _pgfault_upcall(void);
+
+	assert(sys_env_set_pgfault_upcall(envid,_pgfault_upcall) == 0);
+
+	assert(sys_env_set_status(envid,ENV_RUNNABLE) == 0);
+	
+	return envid;
 }
 
 // Challenge!

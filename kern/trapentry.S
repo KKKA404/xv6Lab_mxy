@@ -47,10 +47,55 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
+	TRAPHANDLER_NOEC(th0, 0)
+	TRAPHANDLER_NOEC(th1, 1)
+	TRAPHANDLER_NOEC(th3, 3)
+	TRAPHANDLER_NOEC(th4, 4)
+	TRAPHANDLER_NOEC(th5, 5)
+	TRAPHANDLER_NOEC(th6, 6)
+	TRAPHANDLER_NOEC(th7, 7)
+	TRAPHANDLER(th8, 8)
+	TRAPHANDLER_NOEC(th9, 9)
+	TRAPHANDLER(th10, 10)
+	TRAPHANDLER(th11, 11)
+	TRAPHANDLER(th12, 12)
+	TRAPHANDLER(th13, 13)
+	TRAPHANDLER(th14, 14)
+	TRAPHANDLER_NOEC(th16, 16)
 
+	TRAPHANDLER_NOEC(irq0_entry, IRQ_OFFSET) 
+	TRAPHANDLER_NOEC(irq1_entry, IRQ_OFFSET + 1) 
+	TRAPHANDLER_NOEC(irq2_entry, IRQ_OFFSET + 2) 
+	TRAPHANDLER_NOEC(irq3_entry, IRQ_OFFSET + 3) 
+	TRAPHANDLER_NOEC(irq4_entry, IRQ_OFFSET + 4) 
+	TRAPHANDLER_NOEC(irq5_entry, IRQ_OFFSET + 5) 
+	TRAPHANDLER_NOEC(irq6_entry, IRQ_OFFSET + 6) 
+	TRAPHANDLER_NOEC(irq7_entry, IRQ_OFFSET + 7) 
+	TRAPHANDLER_NOEC(irq8_entry, IRQ_OFFSET + 8) 
+	TRAPHANDLER_NOEC(irq9_entry, IRQ_OFFSET + 9)
+	TRAPHANDLER_NOEC(irq10_entry, IRQ_OFFSET + 10) 
+	TRAPHANDLER_NOEC(irq11_entry, IRQ_OFFSET + 11) 
+	TRAPHANDLER_NOEC(irq12_entry, IRQ_OFFSET + 12) 
+	TRAPHANDLER_NOEC(irq13_entry, IRQ_OFFSET + 13) 
+	TRAPHANDLER_NOEC(irq14_entry, IRQ_OFFSET + 14) 
+	TRAPHANDLER_NOEC(irq15_entry, IRQ_OFFSET + 15)
+	
+	TRAPHANDLER_NOEC(t_syscall, T_SYSCALL)
+
+	TRAPHANDLER_NOEC(th_syscall, T_SYSCALL)
 
 
 /*
  * Lab 3: Your code here for _alltraps
  */
+    _alltraps:
+	pushl %ds
+	pushl %es
+	pushal
+	pushl $GD_KD
+	popl %ds
+	pushl $GD_KD
+	popl %es
+	pushl %esp	//压入trap()的参数tf，%esp指向Trapframe结构的起始地址
+	call trap       //调用trap()函数
 
